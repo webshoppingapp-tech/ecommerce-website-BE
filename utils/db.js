@@ -8,7 +8,7 @@ if (cached.conn) return cached.conn;
  if (!cached.promise) {
  cached.promise = mongoose.connect(process.env.MONGO_URI, {
   bufferCommands: false,
-   dbName: "buynext"
+   //dbName: "buynext"
   }).then(m => m);
  }
  cached.conn = await cached.promise;
