@@ -7,7 +7,7 @@ const app = express();
 
 /* ------------------ CORS ------------------ */
 app.use(cors({
-  origin: "*", // Allows any frontend to connect
+  origin: "https://ecommerce-website-be-8i3k.onrender.com", // Allows any frontend to connect
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
