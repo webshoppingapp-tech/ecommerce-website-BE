@@ -6,10 +6,23 @@ const mongoose = require("mongoose");
 const app = express();
 
 /* ------------------ CORS ------------------ */
+const allowedOrigins = [
+  "https://ecommerce-website-fe-seven.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000"
+];
+
 app.use(cors({
-  origin: "*", // Allows any frontend to connect
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || origin.includes("localhost")) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -23,9 +36,7 @@ async function connectDB() {
 
   if (!cached.promise) {
     cached.promise = mongoose
-      .connect(process.env.MONGO_URI, {
-        dbName: "buynext",
-      })
+      .connect(process.env.MONGO_URI)
       .then((m) => m);
   }
 
@@ -34,7 +45,7 @@ async function connectDB() {
 }
 
 connectDB()
-  .then(() => console.log("✅ MongoDB Connected"))
+  .then(() => console.log("✅ MongoDB Connected done"))
   .catch((err) => console.error("❌ MongoDB Error:", err));
 
 /* ------------------ SCHEMAS ------------------ */
@@ -91,9 +102,9 @@ const orderSchema = new mongoose.Schema(
 
 
 const blogSchema = new mongoose.Schema({
-  title: String,    
-  content: String,  
-  img: String,      
+  title: String,
+  content: String,
+  img: String,
   date: String,
   likes: { type: Number, default: 0 },
 });
@@ -121,10 +132,54 @@ const Blog =
 const Product =
   mongoose.models.Product ||
   mongoose.model("Product", productSchema, "products");
+const User =
+  mongoose.models.User || mongoose.model("User", userSchema, "users");
 
 /* ------------------ HEALTH CHECK ------------------ */
 app.get("/", (req, res) => {
   res.send(" BuyNext API is running");
+});
+
+/* ------------------ USERS ------------------ */
+app.post("/api/users", async (req, res) => {
+  try {
+    await connectDB();
+    const { name, email, phone, address } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // Update existing user
+      if (name) user.name = name;
+      if (phone) user.phone = phone;
+      if (address) user.address = address;
+      await user.save();
+      return res.json({ message: "User updated", user });
+    }
+
+    // Create new user
+    user = new User({ name, email, phone, address });
+    await user.save();
+    res.status(201).json({ message: "User registered in MongoDB", user });
+  } catch (error) {
+    console.error("User registration error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.get("/api/users/:email", async (req, res) => {
+  try {
+    await connectDB();
+    const user = await User.findOne({ email: req.params.email });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 /* ------------------ CART ------------------ */
@@ -138,7 +193,7 @@ app.post("/cart", async (req, res) => {
   try {
     await connectDB();
     // Use _id because that is what MongoDB/Frontend uses
-    const { _id } = req.body; 
+    const { _id } = req.body;
 
     if (!_id) {
       return res.status(400).json({ error: "Product ID is required" });
@@ -160,7 +215,7 @@ app.post("/cart", async (req, res) => {
       ...req.body,
       qty: 1
     });
-    
+
     await newItem.save();
     res.status(201).json(newItem);
   } catch (error) {
@@ -201,6 +256,18 @@ app.get("/admin/orders", async (req, res) => {
 });
 
 /* ✅ USER – OWN ORDERS */
+/* ✅ USER – OWN ORDERS */
+app.get("/orders/user/:email", async (req, res) => {
+  try {
+    await connectDB();
+    const { email } = req.params;
+    const orders = await Order.find({ userEmail: email }).sort({ date: -1 });
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch user orders" });
+  }
+});
+
 app.get("/orders", async (req, res) => {
   try {
     await connectDB();
@@ -255,6 +322,18 @@ app.post("/orders", async (req, res) => {
   } catch (err) {
     console.error("Order creation error:", err);
     res.status(500).json({ error: "Order creation failed" });
+  }
+});
+
+/* ✅ DELETE ORDER */
+app.delete("/orders/:id", async (req, res) => {
+  try {
+    await connectDB();
+    const deleted = await Order.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Order not found" });
+    res.json({ message: "Deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Delete failed" });
   }
 });
 
