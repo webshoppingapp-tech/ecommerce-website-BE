@@ -13,7 +13,13 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: "*", // Allows any frontend to connect
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || origin.includes("localhost")) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
@@ -249,7 +255,6 @@ app.get("/admin/orders", async (req, res) => {
   }
 });
 
-/* ✅ USER – OWN ORDERS */
 /* ✅ USER – OWN ORDERS */
 app.get("/orders/user/:email", async (req, res) => {
   try {
